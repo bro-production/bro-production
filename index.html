@@ -53,8 +53,6 @@ input:focus,textarea:focus{border-color:var(--r)}
 textarea{resize:vertical;min-height:84px}
 .fe{display:none;color:#ff6b6b;font:200 13px/1.4 Montserrat,Arial,sans-serif;letter-spacing:0}
 label.bad .fe{display:block}label.bad input,label.bad textarea{border-color:var(--r)}
-.ok{display:none;color:var(--r);font:800 14px/1.5 Inter,Arial,sans-serif;letter-spacing:0}
-.btn:disabled{opacity:.6;cursor:default}
 @media(max-width:560px){.hr{flex-direction:column;width:100%;max-width:360px}}
 section{padding:130px 0;border-bottom:1px solid var(--ln)}
 .lb{font:800 12px Inter;letter-spacing:.3em;color:var(--r);margin-bottom:24px}
@@ -203,12 +201,12 @@ nav a:not(.btn){padding:18px 0;border-bottom:1px solid var(--ln);font-size:14px}
 <div class="md" id="om" role="dialog" aria-modal="true" aria-labelledby="omt"><div class="bx sm"><button class="x" data-close aria-label="Закрити">×</button><div class="cb">
 <div class="num">ЗАМОВЛЕННЯ</div><h3 id="omt">Зробити замовлення</h3>
 <form id="of" novalidate>
-<label data-f="name">ІМ'Я<input name="name" autocomplete="name"><small class="fe">Вкажіть ім'я</small></label>
-<label data-f="contact">ТЕЛЕФОН / TELEGRAM<input name="contact" autocomplete="tel" placeholder="+380… або @нік"><small class="fe">Вкажіть телефон або Telegram</small></label>
-<label data-f="items">ТОВАРИ / КІЛЬКІСТЬ<textarea name="items" placeholder="Наприклад: Короб для йоршика — 1 шт."></textarea><small class="fe">Вкажіть, які товари й скільки потрібно</small></label>
-<label>КОМЕНТАР (НЕОБОВ'ЯЗКОВО)<textarea name="comment"></textarea></label>
+<label data-f="n">ІМ'Я<input name="n" autocomplete="name"><small class="fe">Вкажіть ім'я</small></label>
+<label data-f="c">ТЕЛЕФОН / TELEGRAM<input name="c" autocomplete="tel" placeholder="+380… або @нік"><small class="fe">Вкажіть телефон або Telegram</small></label>
+<label data-f="p">ТОВАРИ / КІЛЬКІСТЬ<textarea name="p" placeholder="Наприклад: Короб для йоршика — 1 шт."></textarea><small class="fe">Вкажіть, які товари й скільки потрібно</small></label>
+<label>КОМЕНТАР (НЕОБОВ'ЯЗКОВО)<textarea name="m"></textarea></label>
 <button class="btn red" id="osub" type="submit">НАДІСЛАТИ ЗАМОВЛЕННЯ</button>
-<p class="ok" id="ok" role="status"></p>
+<a class="btn tg" id="tgm" href="https://t.me/tkachuk_bohdan" target="_blank" rel="noopener noreferrer" style="text-align:center">ВІДКРИТИ TELEGRAM ВРУЧНУ →</a>
 </form></div></div></div>
 <script>
 /* ===== НАЛАШТУВАННЯ ===== */
@@ -308,29 +306,31 @@ function close(){$$(".md").forEach(m=>m.classList.remove("on"));document.body.st
 function product(i){$("#pmc").innerHTML=detail(PRODUCTS[i],i);$("#pm").scrollTop=0;$("#pm .bx").scrollTop=0;open($("#pm"))}
 
 /* ---------- Форма замовлення → Telegram ---------- */
-/* Як це працює (без бекенду): після перевірки полів JS формує текст замовлення й відкриває
-   TELEGRAM_URL + "?text=" + encodeURIComponent(текст). Telegram відкриє чат з продавцем і підставить
-   текст у поле повідомлення — клієнту лишається натиснути «Надіслати». Автоматично надіслати
-   повідомлення від імені клієнта без бота/сервера неможливо. window.open викликається прямо в
-   обробнику submit (без затримок), інакше Safari на iPhone блокує відкриття нової вкладки. */
-const F=$("#of");let closeTimer=0;
-function orderText(v){return["Нове замовлення BRO PRODUCTION","Ім'я: "+v.name,"Контакт: "+v.contact,"Товари / кількість: "+v.items,"Коментар: "+(v.comment||"—")].join("\n")}
+/* Як це працює (без бекенду): submit-обробник перевіряє обов'язкові поля, формує текст і ОДРАЗУ,
+   у тому ж жесті користувача, робить перехід window.location.href = TELEGRAM_URL + "?text=" + encodeURIComponent(текст).
+   Це звичайна навігація, а не popup, тому Safari (iPhone/Mac), Chrome і Telegram-застосунки її не блокують.
+   Жодних setTimeout/window.open перед переходом. Telegram відкриє чат і підставить текст у поле повідомлення:
+   клієнту лишається натиснути «Надіслати» (автоматично надіслати без бота/сервера неможливо).
+   Імена полів у HTML: n — ім'я, c — телефон/Telegram, p — товари/кількість, m — коментар. */
+const F=$("#of");let sent=false;
+function orderText(v){return"Нове замовлення BRO PRODUCTION\n\nІм'я: "+v.n+"\nКонтакт: "+v.c+"\nТовари / кількість: "+v.p+"\nКоментар: "+(v.m||"—")}
 function openOrder(product){
- clearTimeout(closeTimer);F.reset();F.querySelectorAll("label.bad").forEach(l=>l.classList.remove("bad"));
- $("#ok").style.display="none";$("#osub").disabled=false;
- if(product)F.items.value=product;      /* назва товару з картки підставляється автоматично */
+ sent=false;F.reset();F.querySelectorAll("label.bad").forEach(l=>l.classList.remove("bad"));
+ if(product)F.elements.p.value=product;      /* назва товару з картки підставляється автоматично */
  close();open($("#om"))}
 F.addEventListener("submit",e=>{
- e.preventDefault();if($("#osub").disabled)return;       /* захист від подвійного натискання */
- const f=new FormData(F),v={};["name","contact","items","comment"].forEach(k=>v[k]=String(f.get(k)||"").trim());
- let bad=false;
- ["name","contact","items"].forEach(k=>{const l=F.querySelector(`[data-f="${k}"]`),no=!v[k];l.classList.toggle("bad",no);if(no)bad=true});
- if(bad){const b=F.querySelector("label.bad");if(b)b.scrollIntoView({block:"center",behavior:"smooth"});return}
- const url=TELEGRAM_URL+"?text="+encodeURIComponent(orderText(v));
- $("#osub").disabled=true;
- $("#ok").textContent="Дякуємо! Відкриваємо Telegram для підтвердження.";$("#ok").style.display="block";
- const w=window.open(url,"_blank");if(!w)location.href=url;   /* якщо вкладку заблоковано — переходимо в тому ж вікні */
- closeTimer=setTimeout(()=>{close();F.reset()},4000)});
+ e.preventDefault();
+ const d=new FormData(F),v={};["n","c","p","m"].forEach(k=>v[k]=String(d.get(k)||"").trim());
+ let bad=null;
+ ["n","c","p"].forEach(k=>{const l=F.querySelector(`[data-f="${k}"]`),no=!v[k];l.classList.toggle("bad",no);if(no&&!bad)bad=l});
+ if(bad){bad.scrollIntoView({block:"center",behavior:"smooth"});return}
+ sent=true;
+ window.location.href=TELEGRAM_URL+"?text="+encodeURIComponent(orderText(v));   /* одразу, без затримок */
+});
+/* Коли клієнт повертається з Telegram (вкладка знову видима / сторінка з кешу), форму скидаємо й закриваємо */
+const back=()=>{if(sent){sent=false;close();F.reset()}};
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)back()});
+window.addEventListener("pageshow",back);
 
 /* ---------- Кліки, клавіатура, меню ---------- */
 document.addEventListener("click",e=>{
